@@ -1,0 +1,16 @@
+;; app-issn — itonami（dapp）の aiueos アプリ記述子（notes.edn 形）。
+;; 判定コアは aiueos/issn_judgment.cljk（ISO 3297 のチェックデジット検証・計算）。
+;; 正本は kotoba/src/types.ts。pure（:effects #{}）。
+{:aiueos/component :app/issn
+ :aiueos/kind :app
+ :aiueos/trust :untrusted
+ :aiueos/source "issn_judgment.cljk"
+ :aiueos/wasm "issn_judgment.wasm"
+ :aiueos/entry "main"
+ :aiueos/args []
+ :aiueos/imports #{}
+ :aiueos/exports #{:app/main
+                   :app/issn-valid
+                   :app/issn-check-digit}
+ :aiueos/effects #{}
+ :aiueos/limits {:memory-pages 16 :fuel 5000000}}
