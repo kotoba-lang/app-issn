@@ -1,0 +1,68 @@
+(ns issn.judgment
+  "ISSN 判定コア — itonami dapp bundle（pure, :effects #{}）。
+
+  ISO 3297 のチェックデジット検証・計算の判定
+  （正本: kotoba/src/types.ts の isValidIssn）。
+
+  8 文字 = 7 桁 + チェック（0-9 か X=10）。7 桁には重み 8..2（左から）
+  を掛けて合計し、チェックを足して 11 で割り切れる。
+
+  issn-valid の引数: seven = 上位 7 桁（数値、先頭 0 は自然に扱われる）、
+  check = 0..10（10 は X）。issn-check-digit は 0..10 を返す（10 = X）。
+  mod は使わず quot で剰余を構成（guest 規約）。
+  実行 host はスカラーのみ = KIR v3 / i64/direct ABI（kernel/selfhost 両対応）。
+
+  テストはゼロ引数 test-*、戻り 1/0:
+  <amu> test aiueos/issn_judgment.cljk"
+  (:export [main issn-valid issn-check-digit
+            test-issn test-issn-nature test-issn-x test-issn-bad
+            test-check-digit]))
+
+(defn main [] :i64
+  0)
+
+(defn- m11 [x :i64] :i64
+  (- x (* 11 (quot x 11))))
+
+(defn- dig [n :i64 k :i64] :i64
+  (if (= k 0) (- n (* 10 (quot n 10)))
+    (if (= k 1) (- (quot n 10) (* 10 (quot n 100)))
+      (if (= k 2) (- (quot n 100) (* 10 (quot n 1000)))
+        (if (= k 3) (- (quot n 1000) (* 10 (quot n 10000)))
+          (if (= k 4) (- (quot n 10000) (* 10 (quot n 100000)))
+            (if (= k 5) (- (quot n 100000) (* 10 (quot n 1000000)))
+              (- (quot n 1000000) (* 10 (quot n 10000000))))))))))
+
+(defn- weighted7 [seven :i64] :i64
+  ;; 左から重み 8..2 = 桁位置 k（下位 = k=0）の重みは k+2
+  (+ (* 8 (dig seven 6)) (* 7 (dig seven 5)) (* 6 (dig seven 4))
+     (* 5 (dig seven 3)) (* 4 (dig seven 2)) (* 3 (dig seven 1))
+     (* 2 (dig seven 0))))
+
+(defn issn-check-digit [seven :i64] :i64
+  ;; (11 - sum mod 11) mod 11。10 は X
+  (m11 (- 11 (m11 (weighted7 seven)))))
+
+(defn issn-valid [seven :i64 check :i64] :i64
+  (if (= (m11 (+ (weighted7 seven) check)) 0) 1 0))
+
+;; --- tests（戻り 1 = pass） ------------------------------------------------
+
+(defn test-issn [] :i64
+  ;; 0378-5955 = 0378595 + check 5（正本テストの既知ベクタ）
+  (if (= (issn-valid 378595 5) 1) 1 0))
+
+(defn test-issn-nature [] :i64
+  ;; 0028-0836 = 0028083 + check 6（Nature）
+  (if (= (issn-valid 28083 6) 1) 1 0))
+
+(defn test-issn-x [] :i64
+  ;; 0317-848X（X チェック）
+  (if (= (issn-valid 317848 10) 1) 1 0))
+
+(defn test-issn-bad [] :i64
+  (if (= (issn-valid 378595 4) 0) 1 0))
+
+(defn test-check-digit [] :i64
+  ;; チェックデジット計算が正本の 3 ベクタと一致
+  (if (= (+ (issn-check-digit 378595) (issn-check-digit 28083) (issn-check-digit 317848)) 21) 1 0))
